@@ -835,7 +835,6 @@
       <footer>Animal Company Item Forge © 2025</footer>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs/loader.min.js"></script>
     <script>
       const slots = ["back", "leftHand", "rightHand", "leftHip", "rightHip"];
       const itemData = {};
@@ -1018,133 +1017,143 @@
       ];
 
       // Initialize Monaco Editors
-      require.config({
-        paths: {
-          vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs",
-        },
-      });
-      require(["vs/editor/editor.main"], function () {
-        blockEditor = monaco.editor.create(document.getElementById("blockEditor"), {
-          value: "{}",
-          language: "json",
-          theme: "vs",
-          fontSize: 16,
-          lineHeight: 24,
-          minimap: { enabled: true },
-          lineNumbers: "on",
-          wordWrap: "off",
-          autoClosingBrackets: "always",
-          readOnly: true,
+      const loaderScript = document.createElement("script");
+      loaderScript.src = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs/loader.min.js";
+      loaderScript.onload = function () {
+        window.require.config({
+          paths: {
+            vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs",
+          },
         });
 
-        const schema = {
-          type: "object",
-          properties: {
-            version: { type: "number" },
-            back: { $ref: "#/definitions/item" },
-            leftHand: { $ref: "#/definitions/item" },
-            rightHand: { $ref: "#/definitions/item" },
-            leftHip: { $ref: "#/definitions/item" },
-            rightHip: { $ref: "#/definitions/item" },
-          },
-          definitions: {
-            item: {
-              type: "object",
-              properties: {
-                itemID: { type: "string", enum: itemIDs.map(item => item.id) },
-                colorHue: { type: "number" },
-                colorSaturation: { type: "number" },
-                scaleModifier: { type: "number" },
-                children: { type: "array", items: { $ref: "#/definitions/item" } },
-                ammo: { type: "number" },
-              },
-              required: ["itemID"],
+        window.require(["vs/editor/editor.main"], function () {
+          blockEditor = monaco.editor.create(document.getElementById("blockEditor"), {
+            value: "{}",
+            language: "json",
+            theme: "vs",
+            fontSize: 16,
+            lineHeight: 24,
+            minimap: { enabled: true },
+            lineNumbers: "on",
+            wordWrap: "off",
+            autoClosingBrackets: "always",
+            readOnly: false, // Allow editing
+          });
+
+          const schema = {
+            type: "object",
+            properties: {
+              version: { type: "number" },
+              back: { $ref: "#/definitions/item" },
+              leftHand: { $ref: "#/definitions/item" },
+              rightHand: { $ref: "#/definitions/item" },
+              leftHip: { $ref: "#/definitions/item" },
+              rightHip: { $ref: "#/definitions/item" },
             },
-          },
-        };
+            definitions: {
+              item: {
+                type: "object",
+                properties: {
+                  itemID: { type: "string", enum: itemIDs.map(item => item.id) },
+                  colorHue: { type: "number" },
+                  colorSaturation: { type: "number" },
+                  scaleModifier: { type: "number" },
+                  children: { type: "array", items: { $ref: "#/definitions/item" } },
+                  ammo: { type: "number" },
+                },
+                required: ["itemID"],
+              },
+            },
+          };
 
-        manualEditor = monaco.editor.create(document.getElementById("manualEditor"), {
-          value: JSON.stringify({ version: 1 }, null, 2),
-          language: "json",
-          theme: "vs",
-          fontSize: 16,
-          lineHeight: 24,
-          minimap: { enabled: true },
-          lineNumbers: "on",
-          wordWrap: "off",
-          autoClosingBrackets: "always",
-          suggest: {
-            showWords: true,
-            showFields: true,
-            showValues: true,
-          },
-        });
+          manualEditor = monaco.editor.create(document.getElementById("manualEditor"), {
+            value: JSON.stringify({ version: 1 }, null, 2),
+            language: "json",
+            theme: "vs",
+            fontSize: 16,
+            lineHeight: 24,
+            minimap: { enabled: true },
+            lineNumbers: "on",
+            wordWrap: "off",
+            autoClosingBrackets: "always",
+            suggest: {
+              showWords: true,
+              showFields: true,
+              showValues: true,
+            },
+          });
 
-        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-          validate: true,
-          schemas: [{
-            uri: "http://myschema/item-forge",
-            fileMatch: ["*"],
-            schema: schema,
-          }],
-        });
+          monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+            validate: true,
+            schemas: [
+              {
+                uri: "http://myschema/item-forge",
+                fileMatch: ["*"],
+                schema: schema,
+              },
+            ],
+          });
 
-        document.getElementById("editorTheme").addEventListener("change", (e) => {
-          monaco.editor.setTheme(e.target.value);
-        });
+          // Event listeners for block editor settings
+          document.getElementById("editorTheme").addEventListener("change", (e) => {
+            monaco.editor.setTheme(e.target.value);
+          });
 
-        document.getElementById("fontSize").addEventListener("input", (e) => {
-          blockEditor.updateOptions({ fontSize: parseInt(e.target.value) });
-        });
+          document.getElementById("fontSize").addEventListener("input", (e) => {
+            blockEditor.updateOptions({ fontSize: parseInt(e.target.value) });
+          });
 
-        document.getElementById("lineHeight").addEventListener("input", (e) => {
-          blockEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
-        });
+          document.getElementById("lineHeight").addEventListener("input", (e) => {
+            blockEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
+          });
 
-        document.getElementById("minimap").addEventListener("change", (e) => {
-          blockEditor.updateOptions({ minimap: { enabled: e.target.value === "true" } });
-        });
+          document.getElementById("minimap").addEventListener("change", (e) => {
+            blockEditor.updateOptions({ minimap: { enabled: e.target.value === "true" } });
+          });
 
-        document.getElementById("lineNumbers").addEventListener("change", (e) => {
-          blockEditor.updateOptions({ lineNumbers: e.target.value });
-        });
+          document.getElementById("lineNumbers").addEventListener("change", (e) => {
+            blockEditor.updateOptions({ lineNumbers: e.target.value });
+          });
 
-        document.getElementById("wordWrap").addEventListener("change", (e) => {
-          blockEditor.updateOptions({ wordWrap: e.target.value });
-        });
+          document.getElementById("wordWrap").addEventListener("change", (e) => {
+            blockEditor.updateOptions({ wordWrap: e.target.value });
+          });
 
-        document.getElementById("autoClosingBrackets").addEventListener("change", (e) => {
-          blockEditor.updateOptions({ autoClosingBrackets: e.target.value });
-        });
+          document.getElementById("autoClosingBrackets").addEventListener("change", (e) => {
+            blockEditor.updateOptions({ autoClosingBrackets: e.target.value });
+          });
 
-        document.getElementById("manualEditorTheme").addEventListener("change", (e) => {
-          monaco.editor.setTheme(e.target.value);
-        });
+          // Event listeners for manual editor settings
+          document.getElementById("manualEditorTheme").addEventListener("change", (e) => {
+            monaco.editor.setTheme(e.target.value);
+          });
 
-        document.getElementById("manualFontSize").addEventListener("input", (e) => {
-          manualEditor.updateOptions({ fontSize: parseInt(e.target.value) });
-        });
+          document.getElementById("manualFontSize").addEventListener("input", (e) => {
+            manualEditor.updateOptions({ fontSize: parseInt(e.target.value) });
+          });
 
-        document.getElementById("manualLineHeight").addEventListener("input", (e) => {
-          manualEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
-        });
+          document.getElementById("manualLineHeight").addEventListener("input", (e) => {
+            manualEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
+          });
 
-        document.getElementById("manualMinimap").addEventListener("change", (e) => {
-          manualEditor.updateOptions({ minimap: { enabled: e.target.value === "true" } });
-        });
+          document.getElementById("manualMinimap").addEventListener("change", (e) => {
+            manualEditor.updateOptions({ minimap: { enabled: e.target.value === "true" } });
+          });
 
-        document.getElementById("manualLineNumbers").addEventListener("change", (e) => {
-          manualEditor.updateOptions({ lineNumbers: e.target.value });
-        });
+          document.getElementById("manualLineNumbers").addEventListener("change", (e) => {
+            manualEditor.updateOptions({ lineNumbers: e.target.value });
+          });
 
-        document.getElementById("manualWordWrap").addEventListener("change", (e) => {
-          manualEditor.updateOptions({ wordWrap: e.target.value });
-        });
+          document.getElementById("manualWordWrap").addEventListener("change", (e) => {
+            manualEditor.updateOptions({ wordWrap: e.target.value });
+          });
 
-        document.getElementById("manualAutoClosingBrackets").addEventListener("change", (e) => {
-          manualEditor.updateOptions({ autoClosingBrackets: e.target.value });
+          document.getElementById("manualAutoClosingBrackets").addEventListener("change", (e) => {
+            manualEditor.updateOptions({ autoClosingBrackets: e.target.value });
+          });
         });
-      });
+      };
+      document.head.appendChild(loaderScript);
 
       function initializeItemData() {
         slots.forEach(slot => {
@@ -1241,6 +1250,7 @@
               <div>${child.displayName}</div>
               <button class="btn" onclick="addItemToBackpack('${slot}', ${i})">Add Item</button>
               ${child.itemID !== "None" ? `<button class="btn remove-btn" onclick="removeItemFromBackpack('${slot}', ${i})">Remove</button>` : ""}
+              ${weaponsWithAmmo.includes(child.itemID) ? `<button class="btn view-btn" onclick="viewNestedContent('${slot}', ${i})">View Content</button>` : ""}
             `;
             slotsDiv.appendChild(slotDiv);
           }
@@ -1270,6 +1280,48 @@
             if (value < 0) value = 0;
             if (value > 10) value = 10;
             itemData[slot].ammo = value;
+            ammoSlider.value = value;
+            e.target.value = value;
+          });
+        }
+
+        modal.style.display = "flex";
+      }
+
+      function viewNestedContent(slot, index) {
+        const modal = document.getElementById("contentModal");
+        const modalTitle = document.getElementById("contentModalTitle");
+        const modalBody = document.getElementById("contentModalBody");
+        const item = itemData[slot].children[index];
+
+        modalTitle.textContent = `${item.displayName} Contents`;
+        modalBody.innerHTML = "";
+
+        if (weaponsWithAmmo.includes(item.itemID)) {
+          const propertiesDiv = document.createElement("div");
+          propertiesDiv.className = "nested-item-properties";
+          propertiesDiv.innerHTML = `
+            <div class="property-group">
+              <label>Ammo (0-10)</label>
+              <div class="input-wrapper">
+                <input type="range" class="ammo" min="0" max="10" value="${item.ammo || 0}">
+                <input type="number" class="ammo-text" min="0" max="10" value="${item.ammo || 0}">
+              </div>
+            </div>
+          `;
+          modalBody.appendChild(propertiesDiv);
+          const ammoSlider = propertiesDiv.querySelector(".ammo");
+          const ammoText = propertiesDiv.querySelector(".ammo-text");
+          ammoSlider.addEventListener("input", (e) => {
+            itemData[slot].children[index].ammo = parseInt(e.target.value);
+            ammoText.value = e.target.value;
+          });
+          ammoText.addEventListener("input", (e) => {
+            let value = parseInt(e.target.value);
+            if (isNaN(value)) value = 0;
+            if (value < 0) value = 0;
+            if (value > 10) value = 10;
+            itemData[slot].children[index].ammo = value;
             ammoSlider.value = value;
             e.target.value = value;
           });
