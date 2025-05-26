@@ -1037,34 +1037,8 @@
             lineNumbers: "on",
             wordWrap: "off",
             autoClosingBrackets: "always",
-            readOnly: false, // Allow editing
+            readOnly: true, // Make block editor read-only
           });
-
-          const schema = {
-            type: "object",
-            properties: {
-              version: { type: "number" },
-              back: { $ref: "#/definitions/item" },
-              leftHand: { $ref: "#/definitions/item" },
-              rightHand: { $ref: "#/definitions/item" },
-              leftHip: { $ref: "#/definitions/item" },
-              rightHip: { $ref: "#/definitions/item" },
-            },
-            definitions: {
-              item: {
-                type: "object",
-                properties: {
-                  itemID: { type: "string", enum: itemIDs.map(item => item.id) },
-                  colorHue: { type: "number" },
-                  colorSaturation: { type: "number" },
-                  scaleModifier: { type: "number" },
-                  children: { type: "array", items: { $ref: "#/definitions/item" } },
-                  ammo: { type: "number" },
-                },
-                required: ["itemID"],
-              },
-            },
-          };
 
           manualEditor = monaco.editor.create(document.getElementById("manualEditor"), {
             value: JSON.stringify({ version: 1 }, null, 2),
@@ -1083,6 +1057,44 @@
             },
           });
 
+          const schema = {
+            type: "object",
+            properties: {
+              version: { type: "number" },
+              back: { $ref: "#/definitions/item" },
+              leftHand: { $ref: "#/definitions/item" },
+              rightHand: { $ref: "#/definitions/item" },
+              leftHip: { $ref: "#/definitions/item" },
+              rightHip: { $ref: "#/definitions/item" },
+            },
+            required: ["version"],
+            definitions: {
+              item: {
+                type: "object",
+                properties: {
+                  itemID: { type: "string", enum: itemIDs.map(item => item.id) },
+                  colorHue: { type: "number", minimum: 0, maximum: 360 },
+                  colorSaturation: { type: "number", minimum: 0, maximum: 100 },
+                  scaleModifier: { type: "number", minimum: -128, maximum: 127 },
+                  children: { type: "array", items: { $ref: "#/definitions/childItem" } },
+                  ammo: { type: "number", minimum: 0, maximum: 10 },
+                },
+                required: ["itemID"],
+              },
+              childItem: {
+                type: "object",
+                properties: {
+                  itemID: { type: "string", enum: itemIDs.map(item => item.id) },
+                  colorHue: { type: "number", minimum: 0, maximum: 360 },
+                  colorSaturation: { type: "number", minimum: 0, maximum: 100 },
+                  scaleModifier: { type: "number", minimum: -128, maximum: 127 },
+                  ammo: { type: "number", minimum: 0, maximum: 10 },
+                },
+                required: ["itemID"],
+              },
+            },
+          };
+
           monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
             validate: true,
             schemas: [
@@ -1092,6 +1104,8 @@
                 schema: schema,
               },
             ],
+            allowComments: false,
+            trailingCommas: "error",
           });
 
           // Event listeners for block editor settings
@@ -1100,11 +1114,15 @@
           });
 
           document.getElementById("fontSize").addEventListener("input", (e) => {
-            blockEditor.updateOptions({ fontSize: parseInt(e.target.value) });
+            const value = parseInt(e.target.value) || 16;
+            blockEditor.updateOptions({ fontSize: value });
+            e.target.value = value;
           });
 
           document.getElementById("lineHeight").addEventListener("input", (e) => {
-            blockEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
+            const value = parseInt(e.target.value) || 24;
+            blockEditor.updateOptions({ lineHeight: value });
+            e.target.value = value;
           });
 
           document.getElementById("minimap").addEventListener("change", (e) => {
@@ -1129,11 +1147,15 @@
           });
 
           document.getElementById("manualFontSize").addEventListener("input", (e) => {
-            manualEditor.updateOptions({ fontSize: parseInt(e.target.value) });
+            const value = parseInt(e.target.value) || 16;
+            manualEditor.updateOptions({ fontSize: value });
+            e.target.value = value;
           });
 
           document.getElementById("manualLineHeight").addEventListener("input", (e) => {
-            manualEditor.updateOptions({ lineHeight: parseInt(e.target.value) });
+            const value = parseInt(e.target.value) || 24;
+            manualEditor.updateOptions({ lineHeight: value });
+            e.target.value = value;
           });
 
           document.getElementById("manualMinimap").addEventListener("change", (e) => {
@@ -1184,22 +1206,15 @@
           colorHue: 0,
           colorSaturation: 0,
           scaleModifier: 1,
-          children: Array(item.capacity || 0).fill(null).map(() => ({ itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1 })),
+          children: Array(item.capacity || 0).fill(null).map(() => ({ itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1, ammo: 0 })),
           ammo: 0,
         };
         updateSlotDisplay(selectedSlot);
         updatePropertiesPanel();
+        generateJSON();
       }
 
       function addPresetItem(itemID) {
-        if (!selectedSlot) {
-          alert("Please select a slot first.");
-          return;
-        }
-        if (itemData[selectedSlot].itemID !== "None") {
-          alert("This slot already has an item. Remove it first to add a different item.");
-          return;
-        }
         addItem(itemID);
       }
 
@@ -1243,7 +1258,7 @@
           slotsDiv.className = "backpack-slots";
           const capacity = itemIDs.find(i => i.id === item.itemID).capacity || 0;
           for (let i = 0; i < capacity; i++) {
-            const child = item.children[i] || { itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1 };
+            const child = item.children[i] || { itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1, ammo: 0 };
             const slotDiv = document.createElement("div");
             slotDiv.className = "backpack-slot";
             slotDiv.innerHTML = `
@@ -1271,17 +1286,19 @@
           const ammoSlider = propertiesDiv.querySelector(".ammo");
           const ammoText = propertiesDiv.querySelector(".ammo-text");
           ammoSlider.addEventListener("input", (e) => {
-            itemData[slot].ammo = parseInt(e.target.value);
-            ammoText.value = e.target.value;
+            const value = parseInt(e.target.value);
+            itemData[slot].ammo = value;
+            ammoText.value = value;
+            generateJSON();
           });
           ammoText.addEventListener("input", (e) => {
             let value = parseInt(e.target.value);
-            if (isNaN(value)) value = 0;
-            if (value < 0) value = 0;
+            if (isNaN(value) || value < 0) value = 0;
             if (value > 10) value = 10;
             itemData[slot].ammo = value;
             ammoSlider.value = value;
             e.target.value = value;
+            generateJSON();
           });
         }
 
@@ -1313,17 +1330,19 @@
           const ammoSlider = propertiesDiv.querySelector(".ammo");
           const ammoText = propertiesDiv.querySelector(".ammo-text");
           ammoSlider.addEventListener("input", (e) => {
-            itemData[slot].children[index].ammo = parseInt(e.target.value);
-            ammoText.value = e.target.value;
+            const value = parseInt(e.target.value);
+            itemData[slot].children[index].ammo = value;
+            ammoText.value = value;
+            generateJSON();
           });
           ammoText.addEventListener("input", (e) => {
             let value = parseInt(e.target.value);
-            if (isNaN(value)) value = 0;
-            if (value < 0) value = 0;
+            if (isNaN(value) || value < 0) value = 0;
             if (value > 10) value = 10;
             itemData[slot].children[index].ammo = value;
             ammoSlider.value = value;
             e.target.value = value;
+            generateJSON();
           });
         }
 
@@ -1348,6 +1367,7 @@
                 colorHue: 0,
                 colorSaturation: 0,
                 scaleModifier: 1,
+                ammo: 0,
               };
             } else {
               itemData[slot].children[index] = {
@@ -1356,9 +1376,11 @@
                 colorHue: 0,
                 colorSaturation: 0,
                 scaleModifier: 1,
+                ammo: 0,
               };
             }
             viewContent(slot);
+            generateJSON();
           };
           itemList.appendChild(div);
         });
@@ -1366,8 +1388,9 @@
       }
 
       function removeItemFromBackpack(slot, index) {
-        itemData[slot].children[index] = { itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1 };
+        itemData[slot].children[index] = { itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1, ammo: 0 };
         viewContent(slot);
+        generateJSON();
       }
 
       function closeModal(modalId) {
@@ -1378,6 +1401,7 @@
         itemData[slot] = { itemID: "None", colorHue: 0, colorSaturation: 0, scaleModifier: 1, children: [], ammo: 0 };
         updateSlotDisplay(slot);
         updatePropertiesPanel();
+        generateJSON();
       }
 
       function updateSlotDisplay(slot) {
@@ -1438,53 +1462,72 @@
         const scaleText = propertiesContent.querySelector(".scale-text");
 
         hueSlider.addEventListener("input", (e) => {
-          itemData[selectedSlot].colorHue = parseFloat(e.target.value);
-          hueText.value = e.target.value;
+          const value = parseInt(e.target.value);
+          itemData[selectedSlot].colorHue = value;
+          hueText.value = value;
+          generateJSON();
         });
         hueText.addEventListener("input", (e) => {
-          let value = parseFloat(e.target.value);
-          if (isNaN(value)) value = 0;
-          if (value < 0) value = 0;
+          let value = parseInt(e.target.value);
+          if (isNaN(value) || value < 0) value = 0;
           if (value > 360) value = 360;
           itemData[selectedSlot].colorHue = value;
           hueSlider.value = value;
           e.target.value = value;
+          generateJSON();
         });
 
         saturationSlider.addEventListener("input", (e) => {
-          itemData[selectedSlot].colorSaturation = parseFloat(e.target.value);
-          saturationText.value = e.target.value;
+          const value = parseInt(e.target.value);
+          itemData[selectedSlot].colorSaturation = value;
+          saturationText.value = value;
+          generateJSON();
         });
         saturationText.addEventListener("input", (e) => {
-          let value = parseFloat(e.target.value);
-          if (isNaN(value)) value = 0;
-          if (value < 0) value = 0;
+          let value = parseInt(e.target.value);
+          if (isNaN(value) || value < 0) value = 0;
           if (value > 100) value = 100;
           itemData[selectedSlot].colorSaturation = value;
           saturationSlider.value = value;
           e.target.value = value;
+          generateJSON();
         });
 
         scaleSlider.addEventListener("input", (e) => {
-          itemData[selectedSlot].scaleModifier = parseFloat(e.target.value);
-          scaleText.value = e.target.value;
+          const value = parseInt(e.target.value);
+          itemData[selectedSlot].scaleModifier = value;
+          scaleText.value = value;
+          generateJSON();
         });
         scaleText.addEventListener("input", (e) => {
-          let value = parseFloat(e.target.value);
-          if (isNaN(value)) value = 1;
-          if (value < -128) value = -128;
+          let value = parseInt(e.target.value);
+          if (isNaN(value) || value < -128) value = -128;
           if (value > 127) value = 127;
           itemData[selectedSlot].scaleModifier = value;
           scaleSlider.value = value;
           e.target.value = value;
+          generateJSON();
         });
       }
 
       function applyColorPreset(hue, sat) {
         if (!selectedSlot || itemData[selectedSlot].itemID === "None") return;
-        itemData[selectedSlot].colorHue = parseFloat(hue);
-        itemData[selectedSlot].colorSaturation = parseFloat(sat);
+        itemData[selectedSlot].colorHue = parseInt(hue);
+        itemData[selectedSlot].colorSaturation = parseInt(sat);
         updatePropertiesPanel();
+        generateJSON();
+      }
+
+      function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+          const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+          };
+          clearTimeout(timeout);
+          timeout = setTimeout(later, wait);
+        };
       }
 
       function filterItems() {
@@ -1510,6 +1553,7 @@
             if (item.colorHue !== 0) itemEntry.colorHue = item.colorHue;
             if (item.colorSaturation !== 0) itemEntry.colorSaturation = item.colorSaturation;
             if (item.scaleModifier !== 1) itemEntry.scaleModifier = item.scaleModifier;
+            if (item.ammo !== 0) itemEntry.ammo = item.ammo;
             if (item.children && item.children.length) {
               itemEntry.children = item.children
                 .filter(child => child.itemID !== "None")
@@ -1518,28 +1562,37 @@
                   if (child.colorHue !== 0) childEntry.colorHue = child.colorHue;
                   if (child.colorSaturation !== 0) childEntry.colorSaturation = child.colorSaturation;
                   if (child.scaleModifier !== 1) childEntry.scaleModifier = child.scaleModifier;
+                  if (child.ammo !== 0) childEntry.ammo = child.ammo;
                   return childEntry;
                 });
               if (!itemEntry.children.length) delete itemEntry.children;
             }
-            if (item.ammo !== 0) itemEntry.ammo = item.ammo;
             result[slot] = itemEntry;
           }
         });
-        const jsonString = JSON.stringify(result, null, 2);
-        blockEditor.setValue(jsonString);
+        try {
+          const jsonString = JSON.stringify(result, null, 2);
+          blockEditor.setValue(jsonString);
+        } catch (err) {
+          alert("Error generating JSON: " + err.message);
+        }
       }
 
       function downloadJSON() {
         const json = blockEditor.getValue();
         if (!json) return alert("Generate JSON first.");
-        const blob = new Blob([json], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "item_forge.json";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        try {
+          JSON.parse(json);
+          const blob = new Blob([json], { type: "application/json" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = "item_forge.json";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } catch (err) {
+          alert("Invalid JSON format. Please regenerate JSON.");
+        }
       }
 
       function downloadManualJSON() {
@@ -1568,7 +1621,7 @@
             const json = JSON.parse(e.target.result);
             importJSON(json);
           } catch (err) {
-            alert("Invalid JSON file.");
+            alert("Invalid JSON file: " + err.message);
           }
         };
         reader.readAsText(file);
@@ -1584,7 +1637,7 @@
             const json = JSON.parse(e.target.result);
             manualEditor.setValue(JSON.stringify(json, null, 2));
           } catch (err) {
-            alert("Invalid JSON file.");
+            alert("Invalid JSON file: " + err.message);
           }
         };
         reader.readAsText(file);
@@ -1592,27 +1645,42 @@
       }
 
       function importJSON(json) {
+        if (!json.version) {
+          alert("Invalid JSON: Version is required.");
+          return;
+        }
         slots.forEach(slot => {
           if (json[slot]) {
             const item = itemIDs.find(i => i.id === json[slot].itemID);
-            const capacity = item ? (item.capacity || 0) : 0;
+            if (!item) {
+              alert(`Invalid itemID in slot ${slot}: ${json[slot].itemID}`);
+              return;
+            }
+            const capacity = item.capacity || 0;
             itemData[slot] = {
-              itemID: json[slot].itemID || "None",
-              displayName: item ? item.displayName : "Unknown",
-              colorHue: json[slot].colorHue || 0,
-              colorSaturation: json[slot].colorSaturation || 0,
-              scaleModifier: json[slot].scaleModifier || 1,
-              children: json[slot].children ? json[slot].children.map(child => {
-                const childItem = itemIDs.find(i => i.id === child.itemID);
-                return {
-                  itemID: child.itemID,
-                  displayName: childItem ? childItem.displayName : "Unknown",
-                  colorHue: child.colorHue || 0,
-                  colorSaturation: child.colorSaturation || 0,
-                  scaleModifier: child.scaleModifier || 1,
-                };
-              }) : Array(capacity).fill(null).map(() => ({ itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1 })),
-              ammo: json[slot].ammo || 0,
+              itemID: json[slot].itemID,
+              displayName: item.displayName,
+              colorHue: Math.min(Math.max(parseInt(json[slot].colorHue) || 0, 0), 360),
+              colorSaturation: Math.min(Math.max(parseInt(json[slot].colorSaturation) || 0, 0), 100),
+              scaleModifier: Math.min(Math.max(parseInt(json[slot].scaleModifier) || 1, -128), 127),
+              children: json[slot].children
+                ? json[slot].children.map(child => {
+                    const childItem = itemIDs.find(i => i.id === child.itemID);
+                    if (!childItem) {
+                      alert(`Invalid child itemID in slot ${slot}: ${child.itemID}`);
+                      return { itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1, ammo: 0 };
+                    }
+                    return {
+                      itemID: child.itemID,
+                      displayName: childItem.displayName,
+                      colorHue: Math.min(Math.max(parseInt(child.colorHue) || 0, 0), 360),
+                      colorSaturation: Math.min(Math.max(parseInt(child.colorSaturation) || 0, 0), 100),
+                      scaleModifier: Math.min(Math.max(parseInt(child.scaleModifier) || 1, -128), 127),
+                      ammo: Math.min(Math.max(parseInt(child.ammo) || 0, 0), 10),
+                    };
+                  })
+                : Array(capacity).fill(null).map(() => ({ itemID: "None", displayName: "Empty", colorHue: 0, colorSaturation: 0, scaleModifier: 1, ammo: 0 })),
+              ammo: Math.min(Math.max(parseInt(json[slot].ammo) || 0, 0), 10),
             };
           } else {
             itemData[slot] = { itemID: "None", colorHue: 0, colorSaturation: 0, scaleModifier: 1, children: [], ammo: 0 };
@@ -1638,27 +1706,33 @@
           loadingScreen.style.display = "flex";
           setTimeout(() => {
             loadingScreen.style.display = "none";
-          }, 1000);
+            generateJSON();
+          }, 500);
         }
       }
 
       window.onload = () => {
-        initializeItemData();
-        document.querySelectorAll(".slot").forEach(slot => {
-          slot.addEventListener("click", () => selectSlot(slot));
-        });
-        document.getElementById("searchItemID").addEventListener("input", filterItems);
-        document.querySelectorAll(".color-preset").forEach(preset => {
-          preset.addEventListener("click", () => {
-            const hue = preset.dataset.hue;
-            const sat = preset.dataset.sat;
-            applyColorPreset(hue, sat);
+        const loadingScreen = document.getElementById("loadingScreen");
+        loadingScreen.style.display = "flex";
+        setTimeout(() => {
+          initializeItemData();
+          document.querySelectorAll(".slot").forEach(slot => {
+            slot.addEventListener("click", () => selectSlot(slot));
           });
-        });
-        filterItems();
-        document.querySelectorAll(".tab-btn").forEach(btn => {
-          btn.addEventListener("click", () => switchTab(btn.dataset.tab));
-        });
+          document.getElementById("searchItemID").addEventListener("input", debounce(filterItems, 300));
+          document.querySelectorAll(".color-preset").forEach(preset => {
+            preset.addEventListener("click", () => {
+              const hue = preset.dataset.hue;
+              const sat = preset.dataset.sat;
+              applyColorPreset(hue, sat);
+            });
+          });
+          filterItems();
+          document.querySelectorAll(".tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+          });
+          loadingScreen.style.display = "none";
+        }, 1000);
       };
     </script>
   </body>
